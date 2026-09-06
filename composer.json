@@ -1,0 +1,45 @@
+{
+    "name": "boring-o11y/horizon-delayed-jobs",
+    "description": "A Retries page for the Laravel Horizon dashboard: see the jobs waiting on a backoff and run them now.",
+    "keywords": ["laravel", "horizon", "queue", "redis", "retries", "delayed"],
+    "license": "MIT",
+    "support": {
+        "issues": "https://github.com/boring-o11y/horizon-delayed-jobs/issues",
+        "source": "https://github.com/boring-o11y/horizon-delayed-jobs"
+    },
+    "require": {
+        "php": "^8.1",
+        "illuminate/contracts": "^10.0|^11.0|^12.0",
+        "illuminate/queue": "^10.0|^11.0|^12.0",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "laravel/horizon": "^5.24"
+    },
+    "require-dev": {
+        "mockery/mockery": "^1.6",
+        "orchestra/testbench": "^8.14|^9.0|^10.0",
+        "phpunit/phpunit": "^10.5|^11.0",
+        "predis/predis": "^3.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "BoringO11y\\HorizonDelayedJobs\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "BoringO11y\\HorizonDelayedJobs\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "BoringO11y\\HorizonDelayedJobs\\HorizonDelayedJobsServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

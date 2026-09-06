@@ -1,0 +1,22 @@
+/*
+ * The page borrows Horizon's own Bootstrap classes for everything structural,
+ * so this only covers what those classes do not: keeping the injected mount
+ * out of the layout when it is empty, and the two spots where the markup here
+ * needs to sit the way Horizon's own cards do.
+ */
+#hdj-page:empty {
+    display: none;
+}
+
+#hdj-page .card-header .btn-group .btn.active {
+    background-color: var(--bs-secondary-bg, #e9ecef);
+}
+
+#hdj-page table td,
+#hdj-page table th {
+    vertical-align: middle;
+}
+
+#hdj-page .card-footer {
+    background: transparent;
+}

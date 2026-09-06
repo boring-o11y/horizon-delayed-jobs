@@ -1,0 +1,19 @@
+services:
+  redis:
+    image: redis:7-alpine
+
+  app:
+    build: .
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CLIENT: phpredis
+      DB_CONNECTION: sqlite
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: array
+      APP_ENV: testing
+    depends_on:
+      - redis

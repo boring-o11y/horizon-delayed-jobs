@@ -1,0 +1,46 @@
+name: horizon canary
+
+# The page is spliced into Horizon's rendered layout at three markup anchors,
+# so a Horizon release that moves any of them degrades the dashboard here. This
+# runs the suite against Horizon's development branch on a schedule, which is
+# what turns that into a failing build rather than a support ticket.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: redis
+          coverage: none
+
+      - name: Install Horizon's development branch
+        run: |
+          composer require "laravel/horizon:5.x-dev" --no-interaction --no-update
+          composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Report the Horizon commit under test
+        run: composer show laravel/horizon | head -20
+
+      - name: Run tests
+        run: vendor/bin/phpunit
+        env:
+          REDIS_CLIENT: phpredis
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
