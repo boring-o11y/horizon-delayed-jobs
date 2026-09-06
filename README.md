@@ -4,14 +4,8 @@ A **Retries** page for the Laravel Horizon dashboard: the jobs sitting on a back
 
 Horizon shows you jobs that are pending, completed and failed. It does not show you the ones in between — a job released with a five minute backoff is invisible until it comes back. This adds a page for them.
 
-```
-Retries                      [Retries] [Scheduled] [All]  [queue ▾]  [filter]  [Run 2 now]
+<img width="2880" height="1740" alt="horizon-retries" src="https://github.com/user-attachments/assets/db79d113-ad8f-4efc-9b26-9f4b63b6e715" />
 
-☑  App\Jobs\SendInvoice          default   1 / 3    in 4m 12s     [Run now]
-   9f2a1c4e-...
-☑  App\Jobs\SyncCustomer         default   2 / 5    in 1m 03s     [Run now]
-☐  App\Jobs\GenerateReport       reports   0        in 2h 14m     [Run now]
-```
 
 ## Install
 
