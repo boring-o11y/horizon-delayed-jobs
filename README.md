@@ -103,6 +103,8 @@ docker compose run --rm app env REDIS_CLIENT=predis vendor/bin/phpunit
 
 The layout-override technique is the one [knobik/laravel-horizon-job-output](https://github.com/knobik/laravel-horizon-job-output) uses, and the promotion script is adapted from Laravel Horizon's own delayed job handling. Both MIT.
 
+For detailed explanation of the layout override, check [the blog post](https://boring-observability.dev/blog/extending-the-horizon-dashboard)
+
 Originally done as part of [Skyline](https://boring-observability.dev/skyline). For more job controls and visibility into Horizon queues, check out [Skyline](https://boring-observability.dev/skyline) - a drop-in replacement for Laravel Horizon.
 
 ## License
