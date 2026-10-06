@@ -59,7 +59,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other job. A failing Redis script is now reported as an error under phpredis
   too, instead of looking like an empty queue or a job that was already gone.
 - Errors from "Run now" are shown instead of being cleared by the refresh that
-  follows.
+  follows. The message stays up until you change the filter, queue, page or
+  search, or leave the page.
 - Leaving the Retries page while it is loading no longer draws the card on the
   Horizon page you moved to.
 - Coming back to the Retries page shows the active search in the search box.

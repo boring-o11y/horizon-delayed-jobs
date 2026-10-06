@@ -24,6 +24,7 @@
         meta: null,
         loadedAt: 0,
         error: null,
+        notice: null,
         loading: false,
     };
 
@@ -111,12 +112,7 @@
         return fetch(url, Object.assign({credentials: 'same-origin'}, options || {}, {headers}));
     }
 
-    /**
-     * Fetch the listing. A notice passed in (the outcome of a Run now) is shown
-     * in place of the success state, so the reload that follows an action
-     * cannot wipe the message out before anyone sees it.
-     */
-    function load(notice) {
+    function load() {
         const query = new URLSearchParams({
             type: state.type,
             queue: state.queue,
@@ -139,7 +135,7 @@
                 state.jobs = data.jobs || [];
                 state.meta = data;
                 state.loadedAt = Date.now();
-                state.error = notice || null;
+                state.error = null;
 
                 // Drop selections for jobs that are no longer listed, so a bulk
                 // action can never act on something the page stopped showing.
@@ -160,7 +156,7 @@
             return Promise.resolve();
         }
 
-        let notice = null;
+        state.notice = null;
 
         // Every job goes with the connection and queue the listing found it
         // on, so the server looks there first instead of searching every queue.
@@ -184,16 +180,16 @@
             })
             .then((data) => {
                 if (ids.length === 1 && data.count === 0) {
-                    notice = 'That job is no longer waiting on a delay - it may have already been picked up.';
+                    state.notice = 'That job is no longer waiting on a delay - it may have already been picked up.';
                 }
             })
             .catch((error) => {
-                notice = error.message || 'Could not run that job now.';
+                state.notice = error.message || 'Could not run that job now.';
             })
             .finally(() => {
                 ids.forEach((id) => state.selection.delete(id));
 
-                return load(notice);
+                return load();
             });
     }
 
@@ -308,8 +304,12 @@
             return;
         }
 
-        if (state.error) {
-            notice.innerHTML = '<div class="alert alert-danger rounded-0 mb-0">' + escapeHtml(state.error) + '</div>';
+        // A Run now outcome stays up until the person does something else; the
+        // refresh after the action, or the next poll, must not clear it unseen.
+        const message = state.error || state.notice;
+
+        if (message) {
+            notice.innerHTML = '<div class="alert alert-danger rounded-0 mb-0">' + escapeHtml(message) + '</div>';
 
             return;
         }
@@ -440,6 +440,7 @@
         if (type) {
             state.type = type.getAttribute('data-hdj-type');
             state.page = 1;
+            state.notice = null;
             load();
 
             return;
@@ -449,6 +450,7 @@
 
         if (page) {
             state.page = Math.max(1, state.page + (page.getAttribute('data-hdj-page') === 'next' ? 1 : -1));
+            state.notice = null;
             load();
 
             return;
@@ -503,6 +505,7 @@
         searchTimer = setTimeout(() => {
             state.search = target.value;
             state.page = 1;
+            state.notice = null;
             load();
         }, 250);
     });
@@ -516,6 +519,7 @@
 
         state.queue = target.value;
         state.page = 1;
+        state.notice = null;
         load();
     });
 
@@ -553,6 +557,7 @@
 
         if (!onPage()) {
             stop();
+            state.notice = null;
             root.innerHTML = '';
 
             return;
