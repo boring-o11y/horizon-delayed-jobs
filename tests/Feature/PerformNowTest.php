@@ -131,6 +131,53 @@ class PerformNowTest extends TestCase
         $this->assertSame(1, $redis->llen($keys['ready']));
     }
 
+    public function test_a_malformed_member_does_not_stop_the_others()
+    {
+        Queue::connection('redis')->later(3600, new ExampleJob(1), null, 'default');
+
+        $id = $this->firstDelayedJobId();
+
+        [$redis, $keys] = $this->keys('default');
+
+        // Not JSON, but holding the id, so it passes the substring test and
+        // reaches the decode.
+        $redis->zadd($keys['delayed'], 1, "not json {$id}");
+
+        $response = $this->postJson('horizon/delayed-jobs/perform', ['ids' => [$id]])->assertOk();
+
+        $this->assertSame(1, $response->json('count'));
+        $this->assertSame(1, $redis->llen($keys['ready']));
+        $this->assertSame(1, $redis->zcard($keys['delayed']));
+    }
+
+    public function test_one_pass_promotes_several_jobs_on_one_queue()
+    {
+        foreach (range(1, 3) as $i) {
+            Queue::connection('redis')->later(3600, new ExampleJob($i), null, 'default');
+        }
+
+        Queue::connection('redis')->later(3600, new ExampleJob(4), null, 'default');
+
+        $ids = array_slice($this->getJson('horizon/delayed-jobs?type=')->json('jobs.*.id'), 0, 3);
+
+        $response = $this->postJson('horizon/delayed-jobs/perform', ['ids' => $ids])->assertOk();
+
+        $this->assertSame($ids, $response->json('performed'));
+
+        [$redis, $keys] = $this->keys('default');
+
+        $this->assertSame(3, $redis->llen($keys['ready']));
+        $this->assertSame(1, $redis->zcard($keys['delayed']));
+    }
+
+    public function test_more_ids_than_a_page_holds_are_refused()
+    {
+        config(['horizon-delayed-jobs.per_page' => 2]);
+
+        $this->postJson('horizon/delayed-jobs/perform', ['ids' => ['a', 'b', 'c']])
+            ->assertStatus(422);
+    }
+
     public function test_the_routes_are_gone_when_performing_is_turned_off()
     {
         $this->overrides = ['horizon-delayed-jobs.perform_now' => false];

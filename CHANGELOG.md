@@ -27,6 +27,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Page, sidebar and API URLs are generated from the named routes (Horizon's
   `horizon.index` and this package's own) instead of being assembled from
   config.
+- The bulk "Run now" endpoint refuses more ids than one page of the listing
+  holds (`per_page`) with a 422.
 
 ### Performance
 
@@ -37,6 +39,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - With the listing filtered to one queue, the other queues are only counted,
   not read and decoded. The header total is unchanged.
 - Queue discovery runs once per listing request instead of twice.
+- "Run now" for many jobs walks each queue's delayed set once for all of them,
+  instead of once per job.
+- An unfiltered listing ("All", no search) reads only as many entries from
+  each queue as the requested page needs, instead of up to `scan_limit`.
 
 ### Fixed
 
@@ -46,6 +52,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ignored instead of causing an error.
 - The view override no longer fails when the application's view finder is not
   Laravel's file-based one; the dashboard renders without the Retries page.
+- A route cache built while the package was disabled no longer makes the whole
+  Horizon dashboard fail; the Retries page is left out and a warning is logged.
+  "Run now" buttons are shown only when their route is actually registered.
+- A delayed entry that is not valid JSON no longer aborts "Run now" for every
+  other job. A failing Redis script is now reported as an error under phpredis
+  too, instead of looking like an empty queue or a job that was already gone.
+- Errors from "Run now" are shown instead of being cleared by the refresh that
+  follows.
+- Leaving the Retries page while it is loading no longer draws the card on the
+  Horizon page you moved to.
+- Coming back to the Retries page shows the active search in the search box.
+- Countdowns no longer jump back up when a checkbox is clicked.
 
 ## [0.1.0] - 2026-09-06
 

@@ -40,13 +40,24 @@ class PerformNowController
      * Each entry of "ids" is an id, or an object of the id with the
      * connection and queue hints the single-job route takes.
      *
+     * The page can only select what one page of the listing shows, so a
+     * request for more than that is refused rather than left to hold the
+     * queue's Redis busy for as long as it likes.
+     *
      * @return JsonResponse
      */
     public function storeMany(Request $request)
     {
-        $performed = $this->performer->performMany(
-            (array) $request->input('ids', [])
-        );
+        $ids = (array) $request->input('ids', []);
+        $limit = max(1, (int) config('horizon-delayed-jobs.per_page'));
+
+        if (count($ids) > $limit) {
+            return response()->json([
+                'message' => "At most {$limit} jobs can be run at once.",
+            ], 422);
+        }
+
+        $performed = $this->performer->performMany($ids);
 
         return response()->json([
             'performed' => $performed,

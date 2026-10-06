@@ -42,9 +42,18 @@ class DelayedJobs
         $page = max(1, (int) ($options['page'] ?? 1));
         $queue = ($options['queue'] ?? '') ?: null;
 
+        $limit = max(1, (int) $this->config->get('horizon-delayed-jobs.scan_limit'));
+
+        // A filter can only be applied to payloads that have been read, so a
+        // filtered listing reads up to the scan limit. An unfiltered one is
+        // already in the order the sets are sorted in, so the first page*perPage
+        // entries of each queue are all that can ever reach the page asked for.
+        $filtered = $this->filtered($options);
+        $depth = $filtered ? $limit : min($limit, $page * $perPage);
+
         $pairs = $this->queues->all();
 
-        [$jobs, $total, $truncated] = $this->read($pairs, $queue);
+        [$jobs, $total, $readable, $truncated] = $this->read($pairs, $queue, $limit, $depth);
 
         $matched = $this->filter($jobs, $options)
             ->sortBy(fn (DelayedJob $job) => $job->availableAt)
@@ -53,7 +62,7 @@ class DelayedJobs
         return [
             'jobs' => $matched->slice(($page - 1) * $perPage, $perPage)->values(),
             'total' => $total,
-            'matching' => $matched->count(),
+            'matching' => $filtered ? $matched->count() : $readable,
             'truncated' => $truncated,
             'page' => $page,
             'per_page' => $perPage,
@@ -73,16 +82,20 @@ class DelayedJobs
      * so the header total stays the same without decoding payloads nobody
      * will see.
      *
+     * Only $depth entries of each queue are fetched; the readable count is
+     * how many the listing could show at the scan limit, read or not.
+     *
      * @param  Collection<int, array{0: string, 1: string}>  $pairs
      * @param  string|null  $only
-     * @return array{0: Collection<int, DelayedJob>, 1: int, 2: bool}
+     * @param  int  $limit
+     * @param  int  $depth
+     * @return array{0: Collection<int, DelayedJob>, 1: int, 2: int, 3: bool}
      */
-    protected function read(Collection $pairs, $only = null)
+    protected function read(Collection $pairs, $only, $limit, $depth)
     {
-        $limit = max(1, (int) $this->config->get('horizon-delayed-jobs.scan_limit'));
-
         $jobs = collect();
         $total = 0;
+        $readable = 0;
         $truncated = false;
 
         foreach ($pairs as [$connection, $queue]) {
@@ -96,7 +109,7 @@ class DelayedJobs
 
             $wanted = $only === null || $only === $queue;
 
-            $result = $redis->eval(LuaScripts::readDelayed(), 1, $keys['delayed'], $wanted ? $limit : 0);
+            $result = LuaScripts::run($redis, LuaScripts::readDelayed(), 1, $keys['delayed'], $wanted ? $depth : 0);
 
             $count = (int) ($result[0] ?? 0);
             $total += $count;
@@ -105,6 +118,7 @@ class DelayedJobs
                 continue;
             }
 
+            $readable += min($count, $limit);
             $truncated = $truncated || $count > $limit;
 
             foreach ($this->pairs($result[1] ?? []) as [$payload, $score]) {
@@ -114,7 +128,7 @@ class DelayedJobs
             }
         }
 
-        return [$jobs, $total, $truncated];
+        return [$jobs, $total, $readable, $truncated];
     }
 
     /**
@@ -130,6 +144,18 @@ class DelayedJobs
         for ($i = 0; $i + 1 < count($entries); $i += 2) {
             yield [$entries[$i], (float) $entries[$i + 1]];
         }
+    }
+
+    /**
+     * Whether any of the listing's filters is set.
+     *
+     * @param  array<string, mixed>  $options
+     * @return bool
+     */
+    protected function filtered(array $options)
+    {
+        return in_array($options['type'] ?? null, ['retries', 'scheduled'], true)
+            || trim((string) ($options['search'] ?? '')) !== '';
     }
 
     /**

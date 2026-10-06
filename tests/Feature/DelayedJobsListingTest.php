@@ -2,6 +2,7 @@
 
 namespace BoringO11y\HorizonDelayedJobs\Tests\Feature;
 
+use BoringO11y\HorizonDelayedJobs\QueueKeys;
 use BoringO11y\HorizonDelayedJobs\Tests\Fixtures\ExampleJob;
 use BoringO11y\HorizonDelayedJobs\Tests\Fixtures\OtherJob;
 use BoringO11y\HorizonDelayedJobs\Tests\TestCase;
@@ -102,5 +103,20 @@ class DelayedJobsListingTest extends TestCase
 
         $this->assertSame(0, $response->json('total'));
         $this->assertSame([], $response->json('jobs'));
+    }
+
+    public function test_a_failing_read_is_an_error_rather_than_an_empty_listing()
+    {
+        [$redis, $keys] = app(QueueKeys::class)->resolve('redis', 'default');
+
+        // The wrong type of key makes the script fail; phpredis reports that
+        // as false rather than throwing.
+        $redis->set($keys['delayed'], 'not a sorted set');
+
+        $this->withoutExceptionHandling();
+        // Predis throws its own exception type; either way it must surface.
+        $this->expectException(\Exception::class);
+
+        $this->getJson('horizon/delayed-jobs?type=');
     }
 }

@@ -52,6 +52,19 @@ class LayoutDecorator
      */
     public function decorate(string $html): string
     {
+        // The routes are what the page talks to, and a route cache built while
+        // the package was off, or before it was installed, will not have them.
+        // Without them there is no page to add, and asking for their URLs
+        // would throw and take Horizon's whole dashboard down with it.
+        if (! Route::has('horizon-delayed-jobs.index')) {
+            Log::warning(
+                'horizon-delayed-jobs is enabled but its routes are not registered, so the ' . $this->label() . ' page will not be shown. ' .
+                'If routes are cached, run "php artisan route:cache" again.'
+            );
+
+            return $html;
+        }
+
         $html = $this->injectMount($html);
         $html = $this->injectNavItem($html);
 
@@ -153,15 +166,20 @@ class LayoutDecorator
      */
     protected function settings(): array
     {
+        // Whether the page offers Run now follows the routes that were actually
+        // registered, not the config, so the two cannot disagree under a stale
+        // route cache and leave buttons with nowhere to post.
+        $performUrl = Route::has('horizon-delayed-jobs.perform-many') ? route('horizon-delayed-jobs.perform-many') : null;
+
         return [
             'pageId' => self::PAGE_ID,
             'pagePath' => (string) parse_url($this->pageUrl(), PHP_URL_PATH),
             'indexUrl' => route('horizon-delayed-jobs.index'),
-            'performUrl' => Route::has('horizon-delayed-jobs.perform-many') ? route('horizon-delayed-jobs.perform-many') : null,
+            'performUrl' => $performUrl,
             'label' => $this->label(),
             'pollInterval' => (int) $this->config->get('horizon-delayed-jobs.poll_interval'),
             'perPage' => (int) $this->config->get('horizon-delayed-jobs.per_page'),
-            'performNow' => (bool) $this->config->get('horizon-delayed-jobs.perform_now'),
+            'performNow' => $performUrl !== null && (bool) $this->config->get('horizon-delayed-jobs.perform_now'),
         ];
     }
 

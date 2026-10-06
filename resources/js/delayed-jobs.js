@@ -22,6 +22,7 @@
         selection: new Set(),
         jobs: [],
         meta: null,
+        loadedAt: 0,
         error: null,
         loading: false,
     };
@@ -80,6 +81,15 @@
         return 'in ' + Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h';
     }
 
+    /**
+     * Seconds left on a job, measured from when the server reported them.
+     */
+    function remaining(job) {
+        const elapsed = Math.floor((Date.now() - state.loadedAt) / 1000);
+
+        return Math.max(0, job.seconds_remaining - elapsed);
+    }
+
     function attempts(job) {
         return job.max_tries ? job.attempts + ' / ' + job.max_tries : String(job.attempts);
     }
@@ -101,7 +111,12 @@
         return fetch(url, Object.assign({credentials: 'same-origin'}, options || {}, {headers}));
     }
 
-    function load() {
+    /**
+     * Fetch the listing. A notice passed in (the outcome of a Run now) is shown
+     * in place of the success state, so the reload that follows an action
+     * cannot wipe the message out before anyone sees it.
+     */
+    function load(notice) {
         const query = new URLSearchParams({
             type: state.type,
             queue: state.queue,
@@ -123,7 +138,8 @@
             .then((data) => {
                 state.jobs = data.jobs || [];
                 state.meta = data;
-                state.error = null;
+                state.loadedAt = Date.now();
+                state.error = notice || null;
 
                 // Drop selections for jobs that are no longer listed, so a bulk
                 // action can never act on something the page stopped showing.
@@ -143,6 +159,8 @@
         if (!settings.performNow || ids.length === 0) {
             return Promise.resolve();
         }
+
+        let notice = null;
 
         // Every job goes with the connection and queue the listing found it
         // on, so the server looks there first instead of searching every queue.
@@ -166,16 +184,16 @@
             })
             .then((data) => {
                 if (ids.length === 1 && data.count === 0) {
-                    state.error = 'That job is no longer waiting on a delay - it may have already been picked up.';
+                    notice = 'That job is no longer waiting on a delay - it may have already been picked up.';
                 }
             })
             .catch((error) => {
-                state.error = error.message || 'Could not run that job now.';
+                notice = error.message || 'Could not run that job now.';
             })
             .finally(() => {
                 ids.forEach((id) => state.selection.delete(id));
 
-                return load();
+                return load(notice);
             });
     }
 
@@ -225,7 +243,9 @@
     function render() {
         const root = mount();
 
-        if (!root) {
+        // A request still in flight when the person left must not draw the
+        // card under whichever Horizon page is showing now.
+        if (!root || !onPage()) {
             return;
         }
 
@@ -260,6 +280,15 @@
 
         if (select && select.value !== state.queue) {
             select.value = state.queue;
+        }
+
+        // The shell is rebuilt empty after navigating away and back, while the
+        // filter lives on in state. Only written when it differs, so typing
+        // ahead of the debounce is never overwritten.
+        const search = root.querySelector('[data-hdj-search]');
+
+        if (search && search !== document.activeElement && search.value !== state.search) {
+            search.value = state.search;
         }
 
         const selected = root.querySelector('[data-hdj-perform-selected]');
@@ -331,8 +360,8 @@
                 + '<br><small class="text-muted">' + escapeHtml(job.id) + '</small></td>'
                 + '<td>' + escapeHtml(job.queue) + '</td>'
                 + '<td>' + escapeHtml(attempts(job)) + '</td>'
-                + '<td><span data-hdj-countdown="' + escapeHtml(job.id) + '" data-hdj-seconds="'
-                + escapeHtml(job.seconds_remaining) + '">' + escapeHtml(humanize(job.seconds_remaining)) + '</span></td>'
+                + '<td><span data-hdj-countdown="' + escapeHtml(job.id) + '">'
+                + escapeHtml(humanize(remaining(job))) + '</span></td>'
                 + button
                 + '</tr>';
         }).join('');
@@ -370,8 +399,8 @@
      * Count the visible rows down locally.
      *
      * The remaining seconds come from the server so a clock that disagrees with
-     * the queue's cannot make a job look due early; between polls they are just
-     * decremented here.
+     * the queue's cannot make a job look due early; between polls they count
+     * down from when that response arrived, so a re-render never resets them.
      */
     function tick() {
         const root = mount();
@@ -380,11 +409,14 @@
             return;
         }
 
-        root.querySelectorAll('[data-hdj-countdown]').forEach((element) => {
-            const seconds = Math.max(0, parseInt(element.getAttribute('data-hdj-seconds'), 10) - 1);
+        const jobs = new Map(state.jobs.map((job) => [job.id, job]));
 
-            element.setAttribute('data-hdj-seconds', String(seconds));
-            element.textContent = humanize(seconds);
+        root.querySelectorAll('[data-hdj-countdown]').forEach((element) => {
+            const job = jobs.get(element.getAttribute('data-hdj-countdown'));
+
+            if (job) {
+                element.textContent = humanize(remaining(job));
+            }
         });
     }
 

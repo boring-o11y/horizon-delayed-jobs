@@ -3,7 +3,6 @@
 namespace BoringO11y\HorizonDelayedJobs;
 
 use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Laravel\Horizon\Events\JobsMigrated;
 use Throwable;
@@ -48,79 +47,103 @@ class PerformNow
      * Each job is an id, or an array of the id with its connection and queue
      * hints from the listing.
      *
+     * Ids are looked for a queue at a time, all of them in one pass of that
+     * queue's delayed set: first on the queues their hints name, then whatever
+     * is still missing on every queue in turn, stopping once nothing is. So
+     * however many ids are sent, no delayed set is walked more than twice.
+     *
      * @param  array<int, mixed>  $jobs
      * @return array<int, string> The ids that were promoted.
      */
     public function performMany(array $jobs)
     {
-        $all = $this->queues->all();
-
-        return collect($jobs)
+        $jobs = collect($jobs)
             ->map(fn ($job) => is_array($job) ? $job : ['id' => $job])
             ->filter(fn ($job) => is_string($job['id'] ?? null) && $job['id'] !== '')
             ->unique('id')
-            ->filter(fn ($job) => $this->candidates($all, $job['connection'] ?? null, $job['queue'] ?? null)
-                ->contains(fn ($pair) => $this->promote($job['id'], ...$pair)))
-            ->pluck('id')
-            ->values()
-            ->all();
-    }
+            ->values();
 
-    /**
-     * Order the queues to search, most likely first.
-     *
-     * @param  Collection<int, array{0: string, 1: string}>  $all
-     * @param  mixed  $connection
-     * @param  mixed  $queue
-     * @return Collection<int, array{0: string, 1: string}>
-     */
-    protected function candidates(Collection $all, $connection, $queue)
-    {
-        if (! is_string($connection) || ! is_string($queue) || $connection === '' || $queue === '') {
-            return $all;
+        $promoted = [];
+
+        $hinted = $jobs
+            ->filter(fn ($job) => $this->hint($job) !== null)
+            ->groupBy(fn ($job) => implode('|', $this->hint($job)));
+
+        foreach ($hinted as $group) {
+            [$connection, $queue] = $this->hint($group->first());
+
+            $promoted = array_merge($promoted, $this->promote($group->pluck('id')->all(), $connection, $queue));
         }
 
-        $hinted = [$connection, $queue];
+        foreach ($this->queues->all() as [$connection, $queue]) {
+            $missing = $jobs->pluck('id')->diff($promoted)->values()->all();
 
-        return collect([$hinted])->concat(
-            $all->reject(fn ($pair) => $pair === $hinted)
-        );
+            if ($missing === []) {
+                break;
+            }
+
+            $promoted = array_merge($promoted, $this->promote($missing, $connection, $queue));
+        }
+
+        // Reported in the order they were asked for.
+        return $jobs->pluck('id')->intersect($promoted)->values()->all();
     }
 
     /**
-     * Try to promote the job on one specific queue.
+     * The connection and queue a job's hint names, if it names both.
      *
-     * @param  string  $id
+     * @param  array<string, mixed>  $job
+     * @return array{0: string, 1: string}|null
+     */
+    protected function hint(array $job)
+    {
+        $connection = $job['connection'] ?? null;
+        $queue = $job['queue'] ?? null;
+
+        if (! is_string($connection) || ! is_string($queue) || $connection === '' || $queue === '') {
+            return null;
+        }
+
+        return [$connection, $queue];
+    }
+
+    /**
+     * Try to promote the jobs on one specific queue.
+     *
+     * @param  array<int, string>  $ids
      * @param  string  $connection
      * @param  string  $queue
-     * @return bool
+     * @return array<int, string> The ids that were promoted.
      */
-    protected function promote($id, $connection, $queue)
+    protected function promote(array $ids, $connection, $queue)
     {
         $resolved = $this->keys->resolve($connection, $queue);
 
-        if ($resolved === null) {
-            return false;
+        if ($resolved === null || $ids === []) {
+            return [];
         }
 
         [$redis, $keys] = $resolved;
 
-        $payload = $redis->eval(
+        $result = LuaScripts::run(
+            $redis,
             LuaScripts::performDelayed(),
             3,
             $keys['delayed'],
             $keys['ready'],
             $keys['notify'],
-            $id
+            ...$ids
         );
 
-        if (! is_string($payload) || $payload === '') {
-            return false;
+        $promoted = [];
+
+        for ($i = 0; $i + 1 < count($result); $i += 2) {
+            $promoted[] = (string) $result[$i];
+
+            $this->recordMigration($connection, $queue, (string) $result[$i + 1]);
         }
 
-        $this->recordMigration($connection, $queue, $payload);
-
-        return true;
+        return $promoted;
     }
 
     /**

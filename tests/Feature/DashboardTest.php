@@ -4,6 +4,7 @@ namespace BoringO11y\HorizonDelayedJobs\Tests\Feature;
 
 use BoringO11y\HorizonDelayedJobs\LayoutDecorator;
 use BoringO11y\HorizonDelayedJobs\Tests\TestCase;
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 
@@ -87,5 +88,44 @@ class DashboardTest extends TestCase
         $this->assertStringNotContainsString('data-hdj-nav', $decorated);
 
         $log->shouldHaveReceived('warning')->twice();
+    }
+
+    public function test_the_dashboard_still_renders_when_the_routes_are_missing()
+    {
+        // What a route cache built before the package was enabled looks like.
+        $this->withoutRoutes(['horizon-delayed-jobs.index', 'horizon-delayed-jobs.perform', 'horizon-delayed-jobs.perform-many']);
+
+        $html = $this->get('horizon')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('hdj-page', $html);
+        $this->assertStringNotContainsString('window.HorizonDelayedJobs', $html);
+    }
+
+    public function test_run_now_is_offered_only_when_its_route_exists()
+    {
+        $this->withoutRoutes(['horizon-delayed-jobs.perform', 'horizon-delayed-jobs.perform-many']);
+
+        $settings = (fn () => $this->settings())->call(app(LayoutDecorator::class));
+
+        $this->assertNull($settings['performUrl']);
+        $this->assertFalse($settings['performNow']);
+    }
+
+    /**
+     * Drop the named routes, as a stale route cache would.
+     *
+     * @param  array<int, string>  $names
+     */
+    protected function withoutRoutes(array $names): void
+    {
+        $routes = new RouteCollection;
+
+        foreach (app('router')->getRoutes()->getRoutes() as $route) {
+            if (! in_array($route->getName(), $names, true)) {
+                $routes->add($route);
+            }
+        }
+
+        app('router')->setRoutes($routes);
     }
 }
