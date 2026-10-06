@@ -10,6 +10,8 @@ use JsonSerializable;
  * Everything here is read out of the raw payload the framework stored, plus
  * the sorted set score. Nothing is read from Horizon's own job hash, so the
  * listing works whether or not Horizon has ever seen the job.
+ *
+ * @phpstan-consistent-constructor
  */
 class DelayedJob implements JsonSerializable
 {
@@ -34,8 +36,7 @@ class DelayedJob implements JsonSerializable
         public float $availableAt,
         public ?float $pushedAt = null,
         public ?int $retryUntil = null,
-    ) {
-    }
+    ) {}
 
     /**
      * Build a job from a delayed set member and its score.
@@ -47,7 +48,7 @@ class DelayedJob implements JsonSerializable
      * @param  float  $score  The sorted set score, i.e. availableAt.
      * @param  string  $connection
      * @param  string  $queue
-     * @return static|null  Null when the payload is not decodable job JSON.
+     * @return static|null Null when the payload is not decodable job JSON.
      */
     public static function fromPayload($payload, $score, $connection, $queue)
     {

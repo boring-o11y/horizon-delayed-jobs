@@ -3,13 +3,12 @@
 namespace BoringO11y\HorizonDelayedJobs\Http\Controllers;
 
 use BoringO11y\HorizonDelayedJobs\PerformNow;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PerformNowController
 {
-    public function __construct(protected PerformNow $performer)
-    {
-    }
+    public function __construct(protected PerformNow $performer) {}
 
     /**
      * Promote one delayed job onto its ready queue.
@@ -19,9 +18,8 @@ class PerformNowController
      * expired on its own, and the page should say so instead of implying it
      * did something.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @param  string  $id
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function store(Request $request, $id)
     {
@@ -39,8 +37,7 @@ class PerformNowController
     /**
      * Promote each of the given delayed jobs.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
     public function storeMany(Request $request)
     {

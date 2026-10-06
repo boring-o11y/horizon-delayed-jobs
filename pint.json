@@ -1,0 +1,11 @@
+{
+    "preset": "laravel",
+    "exclude": [
+        "demo"
+    ],
+    "rules": {
+        "concat_space": {
+            "spacing": "one"
+        }
+    }
+}

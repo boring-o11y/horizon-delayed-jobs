@@ -20,15 +20,14 @@ class DelayedJobs
         protected Queues $queues,
         protected QueueKeys $keys,
         protected Config $config,
-    ) {
-    }
+    ) {}
 
     /**
      * Get a page of delayed jobs across every known queue.
      *
-     * @param  array{type?: string|null, search?: string|null, queue?: string|null, page?: int, per_page?: int}  $options
+     * @param  array{type?: string|null, search?: string|null, queue?: string|null, page?: int, per_page?: int|null}  $options
      * @return array{
-     *     jobs: \Illuminate\Support\Collection<int, \BoringO11y\HorizonDelayedJobs\DelayedJob>,
+     *     jobs: Collection<int, DelayedJob>,
      *     total: int,
      *     matching: int,
      *     truncated: bool,
@@ -65,7 +64,7 @@ class DelayedJobs
      * reported as truncated rather than quietly losing its tail: the count in
      * the header stays honest even when the table cannot show everything.
      *
-     * @return array{0: \Illuminate\Support\Collection<int, \BoringO11y\HorizonDelayedJobs\DelayedJob>, 1: int, 2: bool}
+     * @return array{0: Collection<int, DelayedJob>, 1: int, 2: bool}
      */
     protected function read()
     {
@@ -84,7 +83,7 @@ class DelayedJobs
 
             [$redis, $key] = $resolved;
 
-            $result = $redis->eval(LuaScripts::readDelayed(), 1, $key.':delayed', $limit);
+            $result = $redis->eval(LuaScripts::readDelayed(), 1, $key . ':delayed', $limit);
 
             $count = (int) ($result[0] ?? 0);
             $total += $count;
@@ -118,9 +117,9 @@ class DelayedJobs
     /**
      * Apply the listing's filters.
      *
-     * @param  \Illuminate\Support\Collection<int, \BoringO11y\HorizonDelayedJobs\DelayedJob>  $jobs
+     * @param  Collection<int, DelayedJob>  $jobs
      * @param  array<string, mixed>  $options
-     * @return \Illuminate\Support\Collection<int, \BoringO11y\HorizonDelayedJobs\DelayedJob>
+     * @return Collection<int, DelayedJob>
      */
     protected function filter(Collection $jobs, array $options)
     {

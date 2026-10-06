@@ -3,6 +3,8 @@
 namespace BoringO11y\HorizonDelayedJobs\Tests\Feature;
 
 use BoringO11y\HorizonDelayedJobs\Tests\TestCase;
+use Illuminate\Redis\Connections\PhpRedisConnection;
+use Illuminate\Redis\Connections\PredisConnection;
 use Illuminate\Support\Facades\Redis;
 
 class RedisClientTest extends TestCase
@@ -15,8 +17,8 @@ class RedisClientTest extends TestCase
         $this->assertContains(env('REDIS_CLIENT', 'phpredis'), ['phpredis', 'predis']);
 
         $expected = env('REDIS_CLIENT', 'phpredis') === 'predis'
-            ? \Illuminate\Redis\Connections\PredisConnection::class
-            : \Illuminate\Redis\Connections\PhpRedisConnection::class;
+            ? PredisConnection::class
+            : PhpRedisConnection::class;
 
         $this->assertInstanceOf($expected, Redis::connection());
     }

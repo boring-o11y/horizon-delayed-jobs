@@ -12,9 +12,7 @@ class ExampleJob implements ShouldQueue
 
     public $tries = 3;
 
-    public function __construct(public int $id = 1)
-    {
-    }
+    public function __construct(public int $id = 1) {}
 
     public function handle()
     {

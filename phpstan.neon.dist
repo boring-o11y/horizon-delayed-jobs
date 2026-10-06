@@ -1,0 +1,18 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - src
+        - config
+        - routes
+        - tests
+    ignoreErrors:
+        # Larastan only treats the application's config directory as config;
+        # the package's own config file and the test bootstrapping read env.
+        -
+            identifier: larastan.noEnvCallsOutsideOfConfig
+            paths:
+                - config/*
+                - tests/*

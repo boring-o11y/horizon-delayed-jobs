@@ -5,6 +5,8 @@ namespace BoringO11y\HorizonDelayedJobs;
 use Illuminate\Contracts\Foundation\CachesRoutes;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\View\Factory;
+use Illuminate\View\FileViewFinder;
 use Laravel\Horizon\Http\Middleware\Authenticate;
 
 class HorizonDelayedJobsServiceProvider extends ServiceProvider
@@ -16,7 +18,7 @@ class HorizonDelayedJobsServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/horizon-delayed-jobs.php', 'horizon-delayed-jobs');
+        $this->mergeConfigFrom(__DIR__ . '/../config/horizon-delayed-jobs.php', 'horizon-delayed-jobs');
 
         // The bindings are registered unconditionally: they are lazy, so an
         // installation that has the package turned off never resolves them.
@@ -46,7 +48,7 @@ class HorizonDelayedJobsServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__.'/../config/horizon-delayed-jobs.php' => $this->app->configPath('horizon-delayed-jobs.php'),
+                __DIR__ . '/../config/horizon-delayed-jobs.php' => $this->app->configPath('horizon-delayed-jobs.php'),
             ], 'horizon-delayed-jobs-config');
         }
 
@@ -82,7 +84,7 @@ class HorizonDelayedJobsServiceProvider extends ServiceProvider
             'prefix' => config('horizon.path'),
             'middleware' => $this->middleware(),
         ], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/delayed-jobs.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/delayed-jobs.php');
         });
     }
 
@@ -112,12 +114,17 @@ class HorizonDelayedJobsServiceProvider extends ServiceProvider
      * is what lets the override render the real layout instead of a copy that
      * would need re-syncing on every Horizon release.
      *
-     * @param  \Illuminate\View\Factory  $view
+     * @param  Factory  $view
      * @return void
      */
     protected function registerViewOverride($view)
     {
         $finder = $view->getFinder();
+
+        if (! $finder instanceof FileViewFinder) {
+            return;
+        }
+
         $hints = $finder->getHints();
 
         if (! isset($hints['horizon'])) {
@@ -125,7 +132,7 @@ class HorizonDelayedJobsServiceProvider extends ServiceProvider
         }
 
         $finder->addNamespace('horizon-original', $hints['horizon']);
-        $finder->prependNamespace('horizon', __DIR__.'/../resources/views');
+        $finder->prependNamespace('horizon', __DIR__ . '/../resources/views');
     }
 
     /**

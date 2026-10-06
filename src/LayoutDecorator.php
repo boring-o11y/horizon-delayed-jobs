@@ -44,15 +44,10 @@ class LayoutDecorator
 
     protected const BODY_ANCHOR = '</body>';
 
-    public function __construct(protected Config $config)
-    {
-    }
+    public function __construct(protected Config $config) {}
 
     /**
      * Splice this package's additions into the rendered layout.
-     *
-     * @param  string  $html
-     * @return string
      */
     public function decorate(string $html): string
     {
@@ -64,17 +59,14 @@ class LayoutDecorator
 
     /**
      * Add the page's mount point after Horizon's router outlet.
-     *
-     * @param  string  $html
-     * @return string
      */
     protected function injectMount(string $html): string
     {
         return $this->patch(
             $html,
             self::ROUTER_VIEW_ANCHOR,
-            PHP_EOL.'<div id="'.self::PAGE_ID.'"></div>',
-            'the '.$this->label().' page will not be shown'
+            PHP_EOL . '<div id="' . self::PAGE_ID . '"></div>',
+            'the ' . $this->label() . ' page will not be shown'
         );
     }
 
@@ -84,13 +76,10 @@ class LayoutDecorator
      * It has to be a plain anchor. The nav is inside #horizon, so Vue compiles
      * whatever is placed there, and a <router-link> to a route the compiled
      * bundle has never heard of resolves to nothing. A real href navigates.
-     *
-     * @param  string  $html
-     * @return string
      */
     protected function injectNavItem(string $html): string
     {
-        $missing = 'the '.$this->label().' link will be missing from the sidebar';
+        $missing = 'the ' . $this->label() . ' link will be missing from the sidebar';
 
         $start = strpos($html, self::NAV_ANCHOR);
 
@@ -103,7 +92,7 @@ class LayoutDecorator
         return $this->patch(
             $html,
             self::NAV_CLOSE,
-            $this->navItem().PHP_EOL,
+            $this->navItem() . PHP_EOL,
             $missing,
             before: true,
             from: $start
@@ -112,9 +101,6 @@ class LayoutDecorator
 
     /**
      * Add the styles and script before the closing body tag.
-     *
-     * @param  string  $html
-     * @return string
      */
     protected function injectAssets(string $html): string
     {
@@ -132,13 +118,11 @@ class LayoutDecorator
         </script>
         HTML;
 
-        return $this->patch($html, self::BODY_ANCHOR, $assets, 'the '.$this->label().' page will not load', before: true);
+        return $this->patch($html, self::BODY_ANCHOR, $assets, 'the ' . $this->label() . ' page will not load', before: true);
     }
 
     /**
      * Build the sidebar link, mirroring the markup of Horizon's own items.
-     *
-     * @return string
      */
     protected function navItem(): string
     {
@@ -174,8 +158,8 @@ class LayoutDecorator
             'pageId' => self::PAGE_ID,
             'pageUrl' => $this->pageUrl(),
             'pagePath' => (string) parse_url($this->pageUrl(), PHP_URL_PATH),
-            'indexUrl' => $base.'/delayed-jobs',
-            'performUrl' => $base.'/delayed-jobs/perform',
+            'indexUrl' => $base . '/delayed-jobs',
+            'performUrl' => $base . '/delayed-jobs/perform',
             'label' => $this->label(),
             'pollInterval' => (int) $this->config->get('horizon-delayed-jobs.poll_interval', 5000),
             'perPage' => (int) $this->config->get('horizon-delayed-jobs.per_page', 50),
@@ -185,33 +169,26 @@ class LayoutDecorator
 
     /**
      * The absolute URL of this package's page.
-     *
-     * @return string
      */
     protected function pageUrl(): string
     {
-        return $this->dashboardUrl().'/'.trim((string) $this->config->get('horizon-delayed-jobs.path', 'retries'), '/');
+        return $this->dashboardUrl() . '/' . trim((string) $this->config->get('horizon-delayed-jobs.path', 'retries'), '/');
     }
 
     /**
      * The absolute URL of the Horizon dashboard itself.
-     *
-     * @return string
      */
     protected function dashboardUrl(): string
     {
         $path = trim((string) $this->config->get('horizon.path', 'horizon'), '/');
 
         if ($domain = $this->config->get('horizon.domain')) {
-            return rtrim('https://'.trim((string) $domain, '/').'/'.$path, '/');
+            return rtrim('https://' . trim((string) $domain, '/') . '/' . $path, '/');
         }
 
         return rtrim(url($path), '/');
     }
 
-    /**
-     * @return string
-     */
     protected function label(): string
     {
         return (string) $this->config->get('horizon-delayed-jobs.label', 'Retries');
@@ -219,13 +196,10 @@ class LayoutDecorator
 
     /**
      * Read one of this package's built assets.
-     *
-     * @param  string  $path
-     * @return string
      */
     protected function asset(string $path): string
     {
-        $contents = @file_get_contents(__DIR__.'/../resources/'.$path);
+        $contents = @file_get_contents(__DIR__ . '/../resources/' . $path);
 
         return $contents === false ? '' : $contents;
     }
@@ -235,14 +209,6 @@ class LayoutDecorator
      *
      * $from is where to start looking, which is how one anchor is located
      * relative to an earlier one.
-     *
-     * @param  string  $html
-     * @param  string  $anchor
-     * @param  string  $insert
-     * @param  string  $missing
-     * @param  bool  $before
-     * @param  int  $from
-     * @return string
      */
     protected function patch(
         string $html,
@@ -263,15 +229,10 @@ class LayoutDecorator
         return substr_replace($html, $insert, $before ? $position : $position + strlen($anchor), 0);
     }
 
-    /**
-     * @param  string  $anchor
-     * @param  string  $missing
-     * @return void
-     */
     protected function warn(string $anchor, string $missing): void
     {
         Log::warning(
-            "horizon-delayed-jobs could not find \"{$anchor}\" in Horizon's layout, so {$missing}. ".
+            "horizon-delayed-jobs could not find \"{$anchor}\" in Horizon's layout, so {$missing}. " .
             'This usually means Horizon changed its dashboard markup.'
         );
     }

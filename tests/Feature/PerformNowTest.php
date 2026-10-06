@@ -6,6 +6,8 @@ use BoringO11y\HorizonDelayedJobs\QueueKeys;
 use BoringO11y\HorizonDelayedJobs\Tests\Fixtures\ExampleJob;
 use BoringO11y\HorizonDelayedJobs\Tests\Fixtures\OtherJob;
 use BoringO11y\HorizonDelayedJobs\Tests\TestCase;
+use Illuminate\Redis\Connections\PhpRedisConnection;
+use Illuminate\Redis\Connections\PredisConnection;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Laravel\Horizon\Contracts\JobRepository;
@@ -24,9 +26,9 @@ class PerformNowTest extends TestCase
 
         [$redis, $key] = $this->keys('default');
 
-        $this->assertSame(0, $redis->zcard($key.':delayed'));
+        $this->assertSame(0, $redis->zcard($key . ':delayed'));
         $this->assertSame(1, $redis->llen($key));
-        $this->assertSame(1, $redis->llen($key.':notify'));
+        $this->assertSame(1, $redis->llen($key . ':notify'));
 
         // The payload is untouched, so the job runs on the attempt it was on.
         $payload = json_decode($redis->lindex($key, 0), true);
@@ -132,7 +134,7 @@ class PerformNowTest extends TestCase
     }
 
     /**
-     * @return array{0: \Illuminate\Redis\Connections\Connection, 1: string}
+     * @return array{0: PhpRedisConnection|PredisConnection, 1: string}
      */
     protected function keys(string $queue)
     {

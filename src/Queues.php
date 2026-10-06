@@ -22,13 +22,12 @@ class Queues
     public function __construct(
         protected Application $app,
         protected Config $config,
-    ) {
-    }
+    ) {}
 
     /**
      * Get the queues to scan as a list of [connection, queue] pairs.
      *
-     * @return \Illuminate\Support\Collection<int, array{0: string, 1: string}>
+     * @return Collection<int, array{0: string, 1: string}>
      */
     public function all()
     {
@@ -43,21 +42,21 @@ class Queues
             $pairs = $this->fallback();
         }
 
-        return $pairs->unique(fn ($pair) => $pair[0].'|'.$pair[1])->values();
+        return $pairs->unique(fn ($pair) => $pair[0] . '|' . $pair[1])->values();
     }
 
     /**
      * Build the pairs from an explicit connection => queues map.
      *
      * @param  array<string, array<int, string>|string>  $map
-     * @return \Illuminate\Support\Collection<int, array{0: string, 1: string}>
+     * @return Collection<int, array{0: string, 1: string}>
      */
     protected function fromMap(array $map)
     {
         return collect($map)
             ->flatMap(fn ($queues, $connection) => collect((array) $queues)
                 ->map(fn ($queue) => [(string) $connection, (string) $queue]))
-            ->unique(fn ($pair) => $pair[0].'|'.$pair[1])
+            ->unique(fn ($pair) => $pair[0] . '|' . $pair[1])
             ->values();
     }
 
@@ -68,7 +67,7 @@ class Queues
      * to reach the supervisor repository is not an error here — the configured
      * supervisors below still describe the same queues.
      *
-     * @return \Illuminate\Support\Collection<int, array{0: string, 1: string}>
+     * @return Collection<int, array{0: string, 1: string}>
      */
     protected function fromSupervisors()
     {
@@ -96,7 +95,7 @@ class Queues
      * elsewhere, and a queue listed under any of them is a queue whose delayed
      * jobs are worth showing.
      *
-     * @return \Illuminate\Support\Collection<int, array{0: string, 1: string}>
+     * @return Collection<int, array{0: string, 1: string}>
      */
     protected function fromConfiguredSupervisors()
     {
@@ -116,7 +115,7 @@ class Queues
     /**
      * Fall back to the application's default queue connection and queue.
      *
-     * @return \Illuminate\Support\Collection<int, array{0: string, 1: string}>
+     * @return Collection<int, array{0: string, 1: string}>
      */
     protected function fallback()
     {
@@ -140,7 +139,7 @@ class Queues
      *
      * @param  string|null  $connection
      * @param  array<int, string>|string|null  $queue
-     * @return \Illuminate\Support\Collection<int, array{0: string, 1: string}>
+     * @return Collection<int, array{0: string, 1: string}>
      */
     protected function expand($connection, $queue)
     {

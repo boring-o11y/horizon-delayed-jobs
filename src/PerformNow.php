@@ -3,6 +3,7 @@
 namespace BoringO11y\HorizonDelayedJobs;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Laravel\Horizon\Contracts\JobRepository;
 use Laravel\Horizon\JobPayload;
@@ -23,8 +24,7 @@ class PerformNow
         protected Queues $queues,
         protected QueueKeys $keys,
         protected Container $container,
-    ) {
-    }
+    ) {}
 
     /**
      * Promote the given job, searching the queues it might be delayed on.
@@ -36,7 +36,7 @@ class PerformNow
      * @param  string  $id
      * @param  string|null  $connection
      * @param  string|null  $queue
-     * @return bool  Whether the job was found and promoted.
+     * @return bool Whether the job was found and promoted.
      */
     public function perform($id, $connection = null, $queue = null)
     {
@@ -52,8 +52,8 @@ class PerformNow
     /**
      * Promote each of the given jobs.
      *
-     * @param  array<int, string>  $ids
-     * @return array<int, string>  The ids that were promoted.
+     * @param  array<int, mixed>  $ids
+     * @return array<int, string> The ids that were promoted.
      */
     public function performMany(array $ids)
     {
@@ -70,7 +70,7 @@ class PerformNow
      *
      * @param  string|null  $connection
      * @param  string|null  $queue
-     * @return \Illuminate\Support\Collection<int, array{0: string, 1: string}>
+     * @return Collection<int, array{0: string, 1: string}>
      */
     protected function candidates($connection, $queue)
     {
@@ -108,9 +108,9 @@ class PerformNow
         $payload = $redis->eval(
             LuaScripts::performDelayed(),
             3,
-            $key.':delayed',
+            $key . ':delayed',
             $key,
-            $key.':notify',
+            $key . ':notify',
             $id
         );
 
