@@ -4,6 +4,7 @@ namespace BoringO11y\HorizonDelayedJobs;
 
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Js;
 
 /**
@@ -144,54 +145,37 @@ class LayoutDecorator
     /**
      * The values the page's script needs.
      *
-     * URLs are built here rather than in the browser so the page keeps working
-     * behind a reverse proxy, on a moved dashboard path, or on a dashboard
-     * served from its own domain.
+     * URLs come from the named routes rather than being built in the browser,
+     * so the page keeps working behind a reverse proxy, on a moved dashboard
+     * path, or on a dashboard served from its own domain.
      *
      * @return array<string, mixed>
      */
     protected function settings(): array
     {
-        $base = $this->dashboardUrl();
-
         return [
             'pageId' => self::PAGE_ID,
-            'pageUrl' => $this->pageUrl(),
             'pagePath' => (string) parse_url($this->pageUrl(), PHP_URL_PATH),
-            'indexUrl' => $base . '/delayed-jobs',
-            'performUrl' => $base . '/delayed-jobs/perform',
+            'indexUrl' => route('horizon-delayed-jobs.index'),
+            'performUrl' => Route::has('horizon-delayed-jobs.perform-many') ? route('horizon-delayed-jobs.perform-many') : null,
             'label' => $this->label(),
-            'pollInterval' => (int) $this->config->get('horizon-delayed-jobs.poll_interval', 5000),
-            'perPage' => (int) $this->config->get('horizon-delayed-jobs.per_page', 50),
-            'performNow' => (bool) $this->config->get('horizon-delayed-jobs.perform_now', true),
+            'pollInterval' => (int) $this->config->get('horizon-delayed-jobs.poll_interval'),
+            'perPage' => (int) $this->config->get('horizon-delayed-jobs.per_page'),
+            'performNow' => (bool) $this->config->get('horizon-delayed-jobs.perform_now'),
         ];
     }
 
     /**
-     * The absolute URL of this package's page.
+     * The absolute URL of this package's page, on Horizon's own catch-all.
      */
     protected function pageUrl(): string
     {
-        return $this->dashboardUrl() . '/' . trim((string) $this->config->get('horizon-delayed-jobs.path', 'retries'), '/');
-    }
-
-    /**
-     * The absolute URL of the Horizon dashboard itself.
-     */
-    protected function dashboardUrl(): string
-    {
-        $path = trim((string) $this->config->get('horizon.path', 'horizon'), '/');
-
-        if ($domain = $this->config->get('horizon.domain')) {
-            return rtrim('https://' . trim((string) $domain, '/') . '/' . $path, '/');
-        }
-
-        return rtrim(url($path), '/');
+        return route('horizon.index', ['view' => trim((string) $this->config->get('horizon-delayed-jobs.path'), '/')]);
     }
 
     protected function label(): string
     {
-        return (string) $this->config->get('horizon-delayed-jobs.label', 'Retries');
+        return (string) $this->config->get('horizon-delayed-jobs.label');
     }
 
     /**
@@ -199,9 +183,7 @@ class LayoutDecorator
      */
     protected function asset(string $path): string
     {
-        $contents = @file_get_contents(__DIR__ . '/../resources/' . $path);
-
-        return $contents === false ? '' : $contents;
+        return (string) file_get_contents(__DIR__ . '/../resources/' . $path);
     }
 
     /**

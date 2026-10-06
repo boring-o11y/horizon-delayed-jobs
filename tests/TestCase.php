@@ -35,6 +35,14 @@ abstract class TestCase extends BaseTestCase
         parent::tearDown();
     }
 
+    /**
+     * Get the id of the first job on the listing.
+     */
+    protected function firstDelayedJobId(): ?string
+    {
+        return $this->getJson('horizon/delayed-jobs?type=')->json('jobs.0.id');
+    }
+
     protected function getPackageProviders($app)
     {
         return [

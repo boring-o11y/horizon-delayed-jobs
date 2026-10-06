@@ -37,6 +37,9 @@ class PerformNowController
     /**
      * Promote each of the given delayed jobs.
      *
+     * Each entry of "ids" is an id, or an object of the id with the
+     * connection and queue hints the single-job route takes.
+     *
      * @return JsonResponse
      */
     public function storeMany(Request $request)

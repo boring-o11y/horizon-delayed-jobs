@@ -37,7 +37,7 @@ class RedisPrefixTest extends TestCase
     {
         Queue::connection('redis')->later(3600, new ExampleJob(1), null, 'default');
 
-        $id = $this->getJson('horizon/delayed-jobs?type=')->json('jobs.0.id');
+        $id = $this->firstDelayedJobId();
 
         $this->postJson("horizon/delayed-jobs/perform/{$id}")
             ->assertOk()

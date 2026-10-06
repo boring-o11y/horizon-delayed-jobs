@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/delayed-jobs', [DelayedJobsController::class, 'index'])
     ->name('horizon-delayed-jobs.index');
 
-if (config('horizon-delayed-jobs.perform_now', true)) {
+if (config('horizon-delayed-jobs.perform_now')) {
     Route::post('/delayed-jobs/perform', [PerformNowController::class, 'storeMany'])
         ->name('horizon-delayed-jobs.perform-many');
 

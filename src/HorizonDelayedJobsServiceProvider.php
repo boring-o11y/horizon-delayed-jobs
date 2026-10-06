@@ -140,6 +140,6 @@ class HorizonDelayedJobsServiceProvider extends ServiceProvider
      */
     protected function enabled()
     {
-        return (bool) config('horizon-delayed-jobs.enabled', true);
+        return (bool) config('horizon-delayed-jobs.enabled');
     }
 }

@@ -19,7 +19,7 @@ class QueueKeys
     public function __construct(protected QueueFactory $queue) {}
 
     /**
-     * Resolve a connection/queue pair to its Redis connection and base key.
+     * Resolve a connection/queue pair to its Redis connection and keys.
      *
      * The base key comes from the framework so that Redis Cluster keeps
      * working: newer versions wrap the queue name in a hash tag there, which
@@ -32,7 +32,7 @@ class QueueKeys
      *
      * @param  string  $connection
      * @param  string  $queue
-     * @return array{0: PhpRedisConnection|PredisConnection, 1: string}|null
+     * @return array{0: PhpRedisConnection|PredisConnection, 1: array{ready: string, delayed: string, notify: string}}|null
      */
     public function resolve($connection, $queue)
     {
@@ -49,7 +49,7 @@ class QueueKeys
         /** @var PhpRedisConnection|PredisConnection $redis */
         $redis = $instance->getConnection();
 
-        return [$redis, $key];
+        return [$redis, ['ready' => $key, 'delayed' => $key . ':delayed', 'notify' => $key . ':notify']];
     }
 
     /**

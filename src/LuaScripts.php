@@ -38,17 +38,22 @@ class LuaScripts
 
                 for i = 1, #entries, 2 do
                     local payload = entries[i]
-                    local decoded = cjson.decode(payload)
 
-                    if decoded['id'] == ARGV[1] or decoded['uuid'] == ARGV[1] then
-                        if redis.call('zrem', KEYS[1], payload) == 1 then
-                            redis.call('rpush', KEYS[2], payload)
-                            redis.call('rpush', KEYS[3], 1)
+                    -- A plain substring test first, so only the payloads that
+                    -- could hold the id pay for a full decode.
+                    if string.find(payload, ARGV[1], 1, true) then
+                        local decoded = cjson.decode(payload)
 
-                            return payload
+                        if decoded['id'] == ARGV[1] or decoded['uuid'] == ARGV[1] then
+                            if redis.call('zrem', KEYS[1], payload) == 1 then
+                                redis.call('rpush', KEYS[2], payload)
+                                redis.call('rpush', KEYS[3], 1)
+
+                                return payload
+                            end
+
+                            return false
                         end
-
-                        return false
                     end
                 end
             until cursor == "0"
@@ -67,7 +72,7 @@ LUA;
      * disagree about which key they are talking about.
      *
      * KEYS[1] - The queue's delayed sorted set
-     * ARGV[1] - How many entries to read
+     * ARGV[1] - How many entries to read; 0 only counts them
      *
      * @return string
      */

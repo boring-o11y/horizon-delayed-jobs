@@ -32,15 +32,19 @@ class DelayedJobs
      *     matching: int,
      *     truncated: bool,
      *     page: int,
-     *     per_page: int
+     *     per_page: int,
+     *     queues: array<int, string>
      * }
      */
     public function paginate(array $options = [])
     {
-        $perPage = max(1, (int) ($options['per_page'] ?? $this->config->get('horizon-delayed-jobs.per_page', 50)));
+        $perPage = max(1, (int) ($options['per_page'] ?? $this->config->get('horizon-delayed-jobs.per_page')));
         $page = max(1, (int) ($options['page'] ?? 1));
+        $queue = ($options['queue'] ?? '') ?: null;
 
-        [$jobs, $total, $truncated] = $this->read();
+        $pairs = $this->queues->all();
+
+        [$jobs, $total, $truncated] = $this->read($pairs, $queue);
 
         $matched = $this->filter($jobs, $options)
             ->sortBy(fn (DelayedJob $job) => $job->availableAt)
@@ -53,40 +57,54 @@ class DelayedJobs
             'truncated' => $truncated,
             'page' => $page,
             'per_page' => $perPage,
+            'queues' => $pairs->pluck(1)->unique()->sort()->values()->all(),
         ];
     }
 
     /**
-     * Read every known queue's delayed set.
+     * Read the given queues' delayed sets.
      *
      * Each queue is read up to the scan limit. The totals come back from the
      * same script as the entries, so a queue holding more than the limit is
      * reported as truncated rather than quietly losing its tail: the count in
      * the header stays honest even when the table cannot show everything.
      *
+     * When the listing is filtered to one queue, the others are only counted,
+     * so the header total stays the same without decoding payloads nobody
+     * will see.
+     *
+     * @param  Collection<int, array{0: string, 1: string}>  $pairs
+     * @param  string|null  $only
      * @return array{0: Collection<int, DelayedJob>, 1: int, 2: bool}
      */
-    protected function read()
+    protected function read(Collection $pairs, $only = null)
     {
-        $limit = max(1, (int) $this->config->get('horizon-delayed-jobs.scan_limit', 1000));
+        $limit = max(1, (int) $this->config->get('horizon-delayed-jobs.scan_limit'));
 
         $jobs = collect();
         $total = 0;
         $truncated = false;
 
-        foreach ($this->queues->all() as [$connection, $queue]) {
+        foreach ($pairs as [$connection, $queue]) {
             $resolved = $this->keys->resolve($connection, $queue);
 
             if ($resolved === null) {
                 continue;
             }
 
-            [$redis, $key] = $resolved;
+            [$redis, $keys] = $resolved;
 
-            $result = $redis->eval(LuaScripts::readDelayed(), 1, $key . ':delayed', $limit);
+            $wanted = $only === null || $only === $queue;
+
+            $result = $redis->eval(LuaScripts::readDelayed(), 1, $keys['delayed'], $wanted ? $limit : 0);
 
             $count = (int) ($result[0] ?? 0);
             $total += $count;
+
+            if (! $wanted) {
+                continue;
+            }
+
             $truncated = $truncated || $count > $limit;
 
             foreach ($this->pairs($result[1] ?? []) as [$payload, $score]) {
@@ -124,42 +142,14 @@ class DelayedJobs
     protected function filter(Collection $jobs, array $options)
     {
         $type = $options['type'] ?? null;
-        $queue = $options['queue'] ?? null;
         $search = trim((string) ($options['search'] ?? ''));
 
-        return $jobs->filter(function (DelayedJob $job) use ($type, $queue, $search) {
-            if ($type === 'retries' && ! $job->isRetry()) {
+        return $jobs->filter(function (DelayedJob $job) use ($type, $search) {
+            if (in_array($type, ['retries', 'scheduled'], true) && ($type === 'retries') !== $job->isRetry()) {
                 return false;
             }
 
-            if ($type === 'scheduled' && $job->isRetry()) {
-                return false;
-            }
-
-            if ($queue !== null && $queue !== '' && $job->queue !== $queue) {
-                return false;
-            }
-
-            if ($search !== '' && stripos($job->name, $search) === false) {
-                return false;
-            }
-
-            return true;
+            return $search === '' || stripos($job->name, $search) !== false;
         });
-    }
-
-    /**
-     * Get the queues the listing covers, for the UI's queue filter.
-     *
-     * @return array<int, string>
-     */
-    public function queueNames()
-    {
-        return $this->queues->all()
-            ->map(fn ($pair) => $pair[1])
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
     }
 }

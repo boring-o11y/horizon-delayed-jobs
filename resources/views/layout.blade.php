@@ -8,11 +8,6 @@
     Whatever data Horizon's HomeController passed is forwarded verbatim, so a
     Horizon release that adds a variable to its layout keeps working here.
 --}}
-@php
-    $__hdjData = collect(get_defined_vars())
-        ->reject(fn ($value, $key) => str_starts_with($key, '__') || in_array($key, ['app', 'errors', 'obLevel'], true))
-        ->all();
-@endphp
 {!! app(\BoringO11y\HorizonDelayedJobs\LayoutDecorator::class)->decorate(
-    view('horizon-original::layout', $__hdjData)->render()
+    view('horizon-original::layout', $__data)->render()
 ) !!}

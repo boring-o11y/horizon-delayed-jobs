@@ -32,14 +32,13 @@ class Queues
     public function all()
     {
         if ($configured = $this->config->get('horizon-delayed-jobs.queues')) {
-            return $this->fromMap($configured);
-        }
+            $pairs = $this->fromMap($configured);
+        } else {
+            $pairs = $this->fromSupervisors()->merge($this->fromConfiguredSupervisors());
 
-        $pairs = $this->fromSupervisors()
-            ->merge($this->fromConfiguredSupervisors());
-
-        if ($pairs->isEmpty()) {
-            $pairs = $this->fallback();
+            if ($pairs->isEmpty()) {
+                $pairs = $this->fallback();
+            }
         }
 
         return $pairs->unique(fn ($pair) => $pair[0] . '|' . $pair[1])->values();
@@ -55,9 +54,7 @@ class Queues
     {
         return collect($map)
             ->flatMap(fn ($queues, $connection) => collect((array) $queues)
-                ->map(fn ($queue) => [(string) $connection, (string) $queue]))
-            ->unique(fn ($pair) => $pair[0] . '|' . $pair[1])
-            ->values();
+                ->map(fn ($queue) => [(string) $connection, (string) $queue]));
     }
 
     /**

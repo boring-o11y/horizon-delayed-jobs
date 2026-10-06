@@ -29,7 +29,6 @@
     let pollTimer = null;
     let tickTimer = null;
     let searchTimer = null;
-    let mounted = false;
 
     /* ------------------------------------------------------------- helpers */
 
@@ -145,23 +144,28 @@
             return Promise.resolve();
         }
 
-        const single = ids.length === 1;
+        // Every job goes with the connection and queue the listing found it
+        // on, so the server looks there first instead of searching every queue.
+        const jobs = ids.map((id) => {
+            const job = state.jobs.find((candidate) => candidate.id === id);
 
-        const url = single
-            ? settings.performUrl + '/' + encodeURIComponent(ids[0])
-            : settings.performUrl;
+            return job ? {id: id, connection: job.connection, queue: job.queue} : id;
+        });
 
-        const job = single ? state.jobs.find((candidate) => candidate.id === ids[0]) : null;
-
-        return request(url, {
+        return request(settings.performUrl, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(single
-                ? {connection: job ? job.connection : null, queue: job ? job.queue : null}
-                : {ids: ids}),
+            body: JSON.stringify({ids: jobs}),
         })
             .then((response) => {
-                if (response.status === 404) {
+                if (!response.ok) {
+                    throw new Error('Request failed with status ' + response.status);
+                }
+
+                return response.json();
+            })
+            .then((data) => {
+                if (ids.length === 1 && data.count === 0) {
                     state.error = 'That job is no longer waiting on a delay - it may have already been picked up.';
                 }
             })
@@ -225,9 +229,8 @@
             return;
         }
 
-        if (!mounted) {
+        if (!root.querySelector('[data-hdj-card]')) {
             root.innerHTML = shell();
-            mounted = true;
         }
 
         renderControls(root);
@@ -486,10 +489,19 @@
 
     /* ----------------------------------------------------------- lifecycle */
 
+    /**
+     * Refresh in the background, but not for a tab nobody is looking at, and
+     * not on top of a request that has not come back yet.
+     */
+    function poll() {
+        if (!document.hidden && !state.loading) {
+            load();
+        }
+    }
+
     function start() {
-        stop();
         load();
-        pollTimer = setInterval(load, settings.pollInterval);
+        pollTimer = setInterval(poll, settings.pollInterval);
         tickTimer = setInterval(tick, 1000);
     }
 
@@ -509,7 +521,6 @@
 
         if (!onPage()) {
             stop();
-            mounted = false;
             root.innerHTML = '';
 
             return;

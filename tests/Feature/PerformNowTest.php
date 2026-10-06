@@ -18,20 +18,20 @@ class PerformNowTest extends TestCase
     {
         Queue::connection('redis')->later(3600, new ExampleJob(1), null, 'default');
 
-        $id = $this->getJson('horizon/delayed-jobs?type=')->json('jobs.0.id');
+        $id = $this->firstDelayedJobId();
 
         $this->postJson("horizon/delayed-jobs/perform/{$id}")
             ->assertOk()
             ->assertJson(['performed' => true]);
 
-        [$redis, $key] = $this->keys('default');
+        [$redis, $keys] = $this->keys('default');
 
-        $this->assertSame(0, $redis->zcard($key . ':delayed'));
-        $this->assertSame(1, $redis->llen($key));
-        $this->assertSame(1, $redis->llen($key . ':notify'));
+        $this->assertSame(0, $redis->zcard($keys['delayed']));
+        $this->assertSame(1, $redis->llen($keys['ready']));
+        $this->assertSame(1, $redis->llen($keys['notify']));
 
         // The payload is untouched, so the job runs on the attempt it was on.
-        $payload = json_decode($redis->lindex($key, 0), true);
+        $payload = json_decode($redis->lindex($keys['ready'], 0), true);
         $this->assertSame($id, $payload['uuid']);
     }
 
@@ -39,7 +39,7 @@ class PerformNowTest extends TestCase
     {
         Queue::connection('redis')->later(3600, new ExampleJob(1), null, 'default');
 
-        $id = $this->getJson('horizon/delayed-jobs?type=')->json('jobs.0.id');
+        $id = $this->firstDelayedJobId();
 
         $this->postJson("horizon/delayed-jobs/perform/{$id}")->assertOk();
 
@@ -52,7 +52,7 @@ class PerformNowTest extends TestCase
     {
         Queue::connection('redis')->later(3600, new ExampleJob(1), null, 'default');
 
-        $id = $this->getJson('horizon/delayed-jobs?type=')->json('jobs.0.id');
+        $id = $this->firstDelayedJobId();
 
         $this->postJson("horizon/delayed-jobs/perform/{$id}")->assertOk();
 
@@ -66,7 +66,7 @@ class PerformNowTest extends TestCase
     {
         Queue::connection('redis')->later(3600, new OtherJob, null, 'emails');
 
-        $id = $this->getJson('horizon/delayed-jobs?type=')->json('jobs.0.id');
+        $id = $this->firstDelayedJobId();
 
         // A stale hint must fall back to a search rather than report the job gone.
         $this->postJson("horizon/delayed-jobs/perform/{$id}", [
@@ -74,9 +74,9 @@ class PerformNowTest extends TestCase
             'queue' => 'default',
         ])->assertOk()->assertJson(['performed' => true]);
 
-        [$redis, $key] = $this->keys('emails');
+        [$redis, $keys] = $this->keys('emails');
 
-        $this->assertSame(1, $redis->llen($key));
+        $this->assertSame(1, $redis->llen($keys['ready']));
     }
 
     public function test_an_unknown_job_is_a_404()
@@ -102,18 +102,33 @@ class PerformNowTest extends TestCase
         $this->assertSame(0, $this->getJson('horizon/delayed-jobs?type=')->json('total'));
     }
 
+    public function test_many_jobs_can_carry_their_queue_hints()
+    {
+        Queue::connection('redis')->later(3600, new ExampleJob(1), null, 'default');
+        Queue::connection('redis')->later(3600, new OtherJob, null, 'emails');
+
+        $jobs = collect($this->getJson('horizon/delayed-jobs?type=')->json('jobs'))
+            ->map(fn ($job) => ['id' => $job['id'], 'connection' => $job['connection'], 'queue' => $job['queue']])
+            ->all();
+
+        $response = $this->postJson('horizon/delayed-jobs/perform', ['ids' => $jobs])->assertOk();
+
+        $this->assertSame(2, $response->json('count'));
+        $this->assertSame(0, $this->getJson('horizon/delayed-jobs?type=')->json('total'));
+    }
+
     public function test_promoting_the_same_job_twice_only_queues_it_once()
     {
         Queue::connection('redis')->later(3600, new ExampleJob(1), null, 'default');
 
-        $id = $this->getJson('horizon/delayed-jobs?type=')->json('jobs.0.id');
+        $id = $this->firstDelayedJobId();
 
         $this->postJson("horizon/delayed-jobs/perform/{$id}")->assertOk();
         $this->postJson("horizon/delayed-jobs/perform/{$id}")->assertNotFound();
 
-        [$redis, $key] = $this->keys('default');
+        [$redis, $keys] = $this->keys('default');
 
-        $this->assertSame(1, $redis->llen($key));
+        $this->assertSame(1, $redis->llen($keys['ready']));
     }
 
     public function test_the_routes_are_gone_when_performing_is_turned_off()
@@ -134,7 +149,7 @@ class PerformNowTest extends TestCase
     }
 
     /**
-     * @return array{0: PhpRedisConnection|PredisConnection, 1: string}
+     * @return array{0: PhpRedisConnection|PredisConnection, 1: array{ready: string, delayed: string, notify: string}}
      */
     protected function keys(string $queue)
     {

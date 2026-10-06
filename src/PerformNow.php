@@ -2,11 +2,10 @@
 
 namespace BoringO11y\HorizonDelayedJobs;
 
-use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Laravel\Horizon\Contracts\JobRepository;
-use Laravel\Horizon\JobPayload;
+use Laravel\Horizon\Events\JobsMigrated;
 use Throwable;
 
 /**
@@ -23,7 +22,7 @@ class PerformNow
     public function __construct(
         protected Queues $queues,
         protected QueueKeys $keys,
-        protected Container $container,
+        protected Dispatcher $events,
     ) {}
 
     /**
@@ -40,27 +39,29 @@ class PerformNow
      */
     public function perform($id, $connection = null, $queue = null)
     {
-        foreach ($this->candidates($connection, $queue) as [$onConnection, $onQueue]) {
-            if ($this->promote($id, $onConnection, $onQueue)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->performMany([compact('id', 'connection', 'queue')]) !== [];
     }
 
     /**
      * Promote each of the given jobs.
      *
-     * @param  array<int, mixed>  $ids
+     * Each job is an id, or an array of the id with its connection and queue
+     * hints from the listing.
+     *
+     * @param  array<int, mixed>  $jobs
      * @return array<int, string> The ids that were promoted.
      */
-    public function performMany(array $ids)
+    public function performMany(array $jobs)
     {
-        return collect($ids)
-            ->filter(fn ($id) => is_string($id) && $id !== '')
-            ->unique()
-            ->filter(fn ($id) => $this->perform($id))
+        $all = $this->queues->all();
+
+        return collect($jobs)
+            ->map(fn ($job) => is_array($job) ? $job : ['id' => $job])
+            ->filter(fn ($job) => is_string($job['id'] ?? null) && $job['id'] !== '')
+            ->unique('id')
+            ->filter(fn ($job) => $this->candidates($all, $job['connection'] ?? null, $job['queue'] ?? null)
+                ->contains(fn ($pair) => $this->promote($job['id'], ...$pair)))
+            ->pluck('id')
             ->values()
             ->all();
     }
@@ -68,19 +69,18 @@ class PerformNow
     /**
      * Order the queues to search, most likely first.
      *
-     * @param  string|null  $connection
-     * @param  string|null  $queue
+     * @param  Collection<int, array{0: string, 1: string}>  $all
+     * @param  mixed  $connection
+     * @param  mixed  $queue
      * @return Collection<int, array{0: string, 1: string}>
      */
-    protected function candidates($connection, $queue)
+    protected function candidates(Collection $all, $connection, $queue)
     {
-        $all = $this->queues->all();
-
-        if (! $connection || ! $queue) {
+        if (! is_string($connection) || ! is_string($queue) || $connection === '' || $queue === '') {
             return $all;
         }
 
-        $hinted = [(string) $connection, (string) $queue];
+        $hinted = [$connection, $queue];
 
         return collect([$hinted])->concat(
             $all->reject(fn ($pair) => $pair === $hinted)
@@ -103,14 +103,14 @@ class PerformNow
             return false;
         }
 
-        [$redis, $key] = $resolved;
+        [$redis, $keys] = $resolved;
 
         $payload = $redis->eval(
             LuaScripts::performDelayed(),
             3,
-            $key . ':delayed',
-            $key,
-            $key . ':notify',
+            $keys['delayed'],
+            $keys['ready'],
+            $keys['notify'],
             $id
         );
 
@@ -126,10 +126,11 @@ class PerformNow
     /**
      * Tell Horizon the job is back on the ready queue.
      *
-     * This is exactly what Horizon does for a job its own worker migrates, and
-     * it is what moves the job off the dashboard's delayed badge. It is also
-     * bookkeeping: the job is already queued by the time we get here, so a
-     * failure to record it must not be reported as a failure to run it.
+     * This fires the same event Horizon fires for a job its own worker
+     * migrates, and it is what moves the job off the dashboard's delayed badge.
+     * It is also bookkeeping: the job is already queued by the time we get
+     * here, so a failure to record it must not be reported as a failure to run
+     * it.
      *
      * @param  string  $connection
      * @param  string  $queue
@@ -139,8 +140,8 @@ class PerformNow
     protected function recordMigration($connection, $queue, $payload)
     {
         try {
-            $this->container->make(JobRepository::class)->migrated(
-                $connection, $queue, collect([new JobPayload($payload)])
+            $this->events->dispatch(
+                (new JobsMigrated([$payload]))->connection($connection)->queue($queue)
             );
         } catch (Throwable $e) {
             Log::warning('Promoted a delayed job but could not update its Horizon record.', [
