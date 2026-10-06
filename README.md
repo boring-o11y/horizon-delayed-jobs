@@ -85,7 +85,7 @@ Filtering and sorting happen over what is read, so a queue holding more delayed 
 
 ## Compatibility
 
-PHP 8.1+, Laravel 10/11/12, Horizon 5.24+. Both `phpredis` and `predis` are supported and the suite runs against each; a Redis key prefix is covered by its own tests, because a package that read the queue keys one way and wrote them another would show jobs whose "Run now" silently did nothing.
+PHP 8.4+, Laravel 10/11/12, Horizon 5.24+. Both `phpredis` and `predis` are supported and the suite runs against each; a Redis key prefix is covered by its own tests, because a package that read the queue keys one way and wrote them another would show jobs whose "Run now" silently did nothing.
 
 The page and the promotion both address the queue keys through Lua, the way the framework's own `migrate()` and `size()` do, which is what keeps them in agreement.
 
