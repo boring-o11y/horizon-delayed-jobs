@@ -10,16 +10,16 @@
     },
     "require": {
         "php": "^8.4",
-        "illuminate/contracts": "^12.0",
-        "illuminate/queue": "^12.0",
-        "illuminate/support": "^12.0",
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/queue": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
         "laravel/horizon": "^5.24"
     },
     "require-dev": {
         "larastan/larastan": "^2.9|^3.0",
         "laravel/pint": "^1.13",
         "mockery/mockery": "^1.6",
-        "orchestra/testbench": "^10.0",
+        "orchestra/testbench": "^10.0|^11.0",
         "phpunit/phpunit": "^10.5|^11.0",
         "predis/predis": "^3.6"
     },

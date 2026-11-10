@@ -22,9 +22,11 @@ class QueueKeys
      * Resolve a connection/queue pair to its Redis connection and keys.
      *
      * The base key comes from the framework so that Redis Cluster keeps
-     * working: newer versions wrap the queue name in a hash tag there, which
-     * is what puts a queue's ready, delayed and notify keys in one slot and
-     * lets a single script touch all three.
+     * working: from Laravel 13.5 it wraps the queue name in a hash tag there,
+     * which is what puts a queue's ready, delayed and notify keys in one slot
+     * and lets a single script touch all three. The method that builds that
+     * key is protected, so it is called bound to the queue; earlier versions
+     * have no such method and build the key in getQueue().
      *
      * The connection is typed as one of the framework's two drivers because
      * both normalise eval() to (script, numkeys, ...args); the base class only
@@ -43,7 +45,7 @@ class QueueKeys
         }
 
         $key = method_exists($instance, 'getQueueRedisKey')
-            ? $instance->getQueueRedisKey($queue)
+            ? (fn ($queue) => $this->getQueueRedisKey($queue))->call($instance, $queue)
             : $instance->getQueue($queue);
 
         /** @var PhpRedisConnection|PredisConnection $redis */

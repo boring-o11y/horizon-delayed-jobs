@@ -16,3 +16,9 @@ parameters:
             paths:
                 - config/*
                 - tests/*
+        # The queue key method exists from Laravel 13.5 only, so the check for
+        # it is always true when analysing against a newer version.
+        -
+            identifier: function.alreadyNarrowedType
+            path: src/QueueKeys.php
+            reportUnmatched: false
