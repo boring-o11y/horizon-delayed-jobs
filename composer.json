@@ -2,6 +2,7 @@
     "name": "boring-o11y/horizon-delayed-jobs",
     "description": "A Retries page for the Laravel Horizon dashboard: see the jobs waiting on a backoff and run them now.",
     "keywords": ["laravel", "horizon", "queue", "redis", "retries", "delayed"],
+    "homepage": "https://boring-observability.dev/open-source/horizon-delayed-jobs",
     "license": "MIT",
     "support": {
         "issues": "https://github.com/boring-o11y/horizon-delayed-jobs/issues",
